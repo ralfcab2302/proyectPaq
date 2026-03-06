@@ -211,200 +211,149 @@ function cargarDatos(origen, salida, pagina, codigoBarras) {
 // =============================================
 // FUNCION: cargar estadisticas
 // =============================================
+// =============================================
+// FUNCION: cargar estadísticas y dibujar graficos
+// =============================================
 function cargarEstadisticas(origen, salida, codigoBarras) {
 
-  var salidaSelect       = document.getElementById("filtroSalida");
-  var salidaId           = salidaSelect.value;
-  var nombreCliente      = "";
+  var salidaSelect  = document.getElementById("filtroSalida");
+  var salidaId      = salidaSelect.value;
+  var nombreCliente = salidaId != "" ? salidaSelect.options[salidaSelect.selectedIndex].textContent : "";
 
-  if (salidaId != "") {
-    nombreCliente = salidaSelect.options[salidaSelect.selectedIndex].textContent;
-  }
+  // url base con todos los filtros
+  var urlCompleta = "http://localhost:3000/api/paquetes/estadisticas?a=1";
+  if (origen != "")     { urlCompleta += "&origen=" + origen; }
+  if (salida != "")     { urlCompleta += "&salida=" + salida; }
+  if (codigoBarras != "" && codigoBarras != undefined) { urlCompleta += "&codigoBarras=" + codigoBarras; }
 
-  // url con todos los filtros activos
-  var urlFiltrada = "http://localhost:3000/api/paquetes/estadisticas?a=1";
-  if (origen != "")     { urlFiltrada = urlFiltrada + "&origen=" + origen; }
-  if (salida != "")     { urlFiltrada = urlFiltrada + "&salida=" + salida; }
-  if (codigoBarras != "" && codigoBarras != undefined) {
-    urlFiltrada = urlFiltrada + "&codigoBarras=" + codigoBarras;
-  }
+  // url solo con salida y codigoBarras — SIN origen — para que el grafico del medio
+  // siempre muestre Cordoba y Sevilla aunque haya filtro de origen activo
+  var urlSinOrigen = "http://localhost:3000/api/paquetes/estadisticas?a=1";
+  if (salida != "")     { urlSinOrigen += "&salida=" + salida; }
+  if (codigoBarras != "" && codigoBarras != undefined) { urlSinOrigen += "&codigoBarras=" + codigoBarras; }
 
-  // sin cliente seleccionado: una sola peticion
-  if (salidaId == "") {
-    fetch(urlFiltrada, { headers: { "Authorization": "Bearer " + token } })
-    .then(function(res) { return res.json(); })
-    .then(function(datos) {
-      ocultarGraficosCliente();
-      hacerGraficosGenerales(datos);
-    })
-    .catch(function(err) { console.log("Error estadisticas: " + err.message); });
-    return;
-  }
+  var pCompleta   = fetch(urlCompleta,  { headers: { "Authorization": "Bearer " + token } }).then(function(r) { return r.json(); });
+  var pSinOrigen  = fetch(urlSinOrigen, { headers: { "Authorization": "Bearer " + token } }).then(function(r) { return r.json(); });
 
-  // con cliente: dos peticiones en paralelo
-  // p1 — con todos los filtros → para el grafico de evolucion mensual
-  var p1 = fetch(urlFiltrada, { headers: { "Authorization": "Bearer " + token } })
-    .then(function(res) { return res.json(); });
-
-  // p2 — solo con salida, SIN filtro de origen → para Cordoba vs Sevilla siempre con las dos barras
-  var urlSoloCliente = "http://localhost:3000/api/paquetes/estadisticas?a=1&salida=" + salidaId;
-  var p2 = fetch(urlSoloCliente, { headers: { "Authorization": "Bearer " + token } })
-    .then(function(res) { return res.json(); });
-
-  Promise.all([p1, p2])
+  Promise.all([pCompleta, pSinOrigen])
   .then(function(res) {
-    mostrarGraficosCliente(nombreCliente, {
-      porMes:    res[0].porMes,     // incluye campo origen — para las dos lineas Cordoba/Sevilla
-      porOrigen: res[1].porOrigen   // sin filtro origen — siempre muestra las dos barras
-    });
+    var datosCompletos  = res[0];
+    var datosSinOrigen  = res[1];
+    hacerGraficos(nombreCliente, datosCompletos, datosSinOrigen);
   })
-  .catch(function(err) { console.log("Error estadisticas cliente: " + err.message); });
+  .catch(function(err) { console.log("Error estadisticas: " + err.message); });
 }
 
 
 // =============================================
-// FUNCION: mostrar seccion de graficos del cliente
+// FUNCION UNICA de graficos
+// nombreCliente: string vacío = sin filtro de empresa
+// datosCompletos: respuesta con todos los filtros (para dona y linea)
+// datosSinOrigen: respuesta sin filtro origen (para barras del medio, siempre Córdoba+Sevilla)
 // =============================================
-function mostrarGraficosCliente(nombreCliente, datos) {
+function hacerGraficos(nombreCliente, datosCompletos, datosSinOrigen) {
 
-  // ocultar graficos generales
-  document.getElementById("seccionGraficosGenerales").style.display = "none";
+  var hayCliente  = nombreCliente != "";
 
-  // mostrar seccion del cliente
-  var seccion = document.getElementById("seccionGraficosCliente");
-  seccion.style.display = "block";
-
-  // coger los colores de esa empresa
-  var colores = coloresEmpresa[nombreCliente] || coloresDefault;
-
-  // poner el nombre y el color en la cabecera
-  document.getElementById("nombreClienteGrafico").textContent = nombreCliente;
-  document.getElementById("badgeCliente").style.background = colores.primario;
-  document.getElementById("badgeCliente").style.color = esClaroElColor(colores.primario) ? "#1a1a2e" : "#ffffff";
-
-  // pintar el borde de la seccion con el color de la empresa
-  seccion.style.borderColor = colores.primario + "44";
-
-  var colorTexto = getComputedStyle(document.body).getPropertyValue("--text-muted").trim();
-  var colorGrid  = document.body.classList.contains("claro") ? "rgba(200,200,220,0.5)" : "rgba(42,42,56,0.5)";
-
-  // ---- GRAFICO 1: dos lineas por mes (Cordoba y Sevilla) con colores de la empresa ----
-  // construir los meses disponibles
-  var mesesSetCliente = {};
-  for (var i = 0; i < datos.porMes.length; i++) {
-    mesesSetCliente[datos.porMes[i].nombre] = true;
-  }
-  var mesesCliente = Object.keys(mesesSetCliente).sort();
-
-  // rellenar valores separados por origen
-  var vCordobaCliente = [];
-  var vSevillaCliente = [];
-  for (var i = 0; i < mesesCliente.length; i++) {
-    var mes = mesesCliente[i];
-    var vc = 0;
-    var vs = 0;
-    for (var j = 0; j < datos.porMes.length; j++) {
-      var fila = datos.porMes[j];
-      if (fila.nombre == mes) {
-        if (fila.origen == "Cordoba") { vc = fila.total; }
-        if (fila.origen == "Sevilla") { vs = fila.total; }
-      }
-    }
-    vCordobaCliente.push(vc);
-    vSevillaCliente.push(vs);
-  }
-
-  // si porMes no tiene campo origen (es la query general), caer en una sola linea
-  var tieneOrigen = datos.porMes.length > 0 && datos.porMes[0].origen != undefined;
-  var datasetsClienteMes = [];
-
-  if (tieneOrigen) {
-    datasetsClienteMes = [
-      {
-        label: "Cordoba",
-        data: vCordobaCliente,
-        borderColor: colores.primario,
-        backgroundColor: colores.fondo,
-        fill: true, tension: 0.4, pointRadius: 4,
-        pointBackgroundColor: colores.primario,
-        pointBorderColor: colores.secundario,
-        pointBorderWidth: 2, borderWidth: 2
-      },
-      {
-        label: "Sevilla",
-        data: vSevillaCliente,
-        borderColor: colores.secundario,
-        backgroundColor: "rgba(0,0,0,0.03)",
-        fill: true, tension: 0.4, pointRadius: 4,
-        pointBackgroundColor: colores.secundario,
-        pointBorderColor: colores.primario,
-        pointBorderWidth: 2, borderWidth: 2,
-        borderDash: [5, 3]
-      }
-    ];
+  // actualizar titulos de graficos 1 y 3 segun estado
+  var tit1 = document.getElementById("tituloGrafico1");
+  var tit3 = document.getElementById("tituloGrafico3");
+  if (hayCliente) {
+    tit1.textContent = "Cordoba vs Sevilla — " + nombreCliente;
+    tit3.textContent = "Evolucion mensual — " + nombreCliente;
   } else {
-    // fallback: una sola linea con el total
-    var valoresMes = [];
-    var etiquetasMes = [];
-    for (var i = 0; i < datos.porMes.length; i++) {
-      etiquetasMes.push(datos.porMes[i].nombre);
-      valoresMes.push(datos.porMes[i].total);
-    }
-    mesesCliente = etiquetasMes;
-    datasetsClienteMes = [{
-      label: nombreCliente,
-      data: valoresMes,
-      borderColor: colores.primario,
-      backgroundColor: colores.fondo,
-      fill: true, tension: 0.4, pointRadius: 4,
-      pointBackgroundColor: colores.primario,
-      pointBorderColor: colores.secundario,
-      pointBorderWidth: 2, borderWidth: 2
-    }];
+    tit1.textContent = "Paquetes por empresa";
+    tit3.textContent = "Evolucion por mes";
+  }
+  var colores     = hayCliente ? (coloresEmpresa[nombreCliente] || coloresDefault) : null;
+  var colorTexto  = getComputedStyle(document.body).getPropertyValue("--text-muted").trim();
+  var colorGrid   = document.body.classList.contains("claro") ? "rgba(200,200,220,0.5)" : "rgba(42,42,56,0.5)";
+
+  // actualizar badge del cliente si hay filtro
+  var badge   = document.getElementById("badgeCliente");
+  var cabecera = document.getElementById("cabeceraCliente");
+  if (hayCliente) {
+    badge.textContent = nombreCliente;
+    badge.style.background = colores.primario;
+    badge.style.color = esClaroElColor(colores.primario) ? "#1a1a2e" : "#ffffff";
+    cabecera.style.display = "flex";
+    cabecera.style.borderLeftColor = colores.primario;
+  } else {
+    cabecera.style.display = "none";
   }
 
-  if (graficoClienteMes != null) { graficoClienteMes.destroy(); }
-  graficoClienteMes = new Chart(document.getElementById("graficoClienteMes"), {
-    type: "line",
-    data: {
-      labels: mesesCliente,
-      datasets: datasetsClienteMes
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: {
-        legend: { display: true, labels: { color: colorTexto, font: { size: 10 }, boxWidth: 12 } }
+  // ─────────────────────────────────────────────────────────────
+  // GRAFICO 1 — dona
+  // Sin empresa: todas las empresas con listaColores
+  // Con empresa: Córdoba vs Sevilla con colores corporativos
+  // ─────────────────────────────────────────────────────────────
+  if (graficoSalida != null) { graficoSalida.destroy(); }
+
+  if (!hayCliente) {
+    // todas las empresas
+    var etiquetasSalida = [];
+    var valoresSalida   = [];
+    for (var i = 0; i < datosCompletos.porSalida.length; i++) {
+      etiquetasSalida.push(datosCompletos.porSalida[i].nombre);
+      valoresSalida.push(datosCompletos.porSalida[i].total);
+    }
+    graficoSalida = new Chart(document.getElementById("graficoSalida"), {
+      type: "doughnut",
+      data: {
+        labels: etiquetasSalida,
+        datasets: [{ data: valoresSalida, backgroundColor: listaColores, borderWidth: 0 }]
       },
-      scales: {
-        x: { ticks: { color: colorTexto, font: { size: 9 } }, grid: { color: colorGrid } },
-        y: { ticks: { color: colorTexto, font: { size: 9 } }, grid: { color: colorGrid } }
+      options: {
+        responsive: true, maintainAspectRatio: false, cutout: "60%",
+        plugins: { legend: { position: "bottom", labels: { color: colorTexto, font: { size: 10 }, boxWidth: 10 } } }
       }
+    });
+  } else {
+    // Córdoba vs Sevilla con colores de la empresa
+    var cordobaDona = 0;
+    var sevillaDona = 0;
+    for (var i = 0; i < datosSinOrigen.porOrigen.length; i++) {
+      if (datosSinOrigen.porOrigen[i].nombre == "Cordoba") { cordobaDona = datosSinOrigen.porOrigen[i].total; }
+      if (datosSinOrigen.porOrigen[i].nombre == "Sevilla")  { sevillaDona = datosSinOrigen.porOrigen[i].total; }
     }
-  });
-
-  // ---- GRAFICO 2: barras Cordoba vs Sevilla con colores fijos por ciudad ----
-  // Cordoba siempre en morado (#6c63ff), Sevilla siempre en verde (#43e97b)
-  // independientemente del cliente seleccionado
-
-  var datosCordoba = 0;
-  var datosSevilla = 0;
-  for (var i = 0; i < datos.porOrigen.length; i++) {
-    if (datos.porOrigen[i].nombre == "Cordoba") { datosCordoba = datos.porOrigen[i].total; }
-    if (datos.porOrigen[i].nombre == "Sevilla")  { datosSevilla = datos.porOrigen[i].total; }
+    graficoSalida = new Chart(document.getElementById("graficoSalida"), {
+      type: "doughnut",
+      data: {
+        labels: ["Cordoba", "Sevilla"],
+        datasets: [{
+          data: [cordobaDona, sevillaDona],
+          backgroundColor: [colores.primario, colores.secundario],
+          borderWidth: 0
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, cutout: "60%",
+        plugins: { legend: { position: "bottom", labels: { color: colorTexto, font: { size: 11 }, boxWidth: 12 } } }
+      }
+    });
   }
 
-  if (graficoClienteOrigen != null) { graficoClienteOrigen.destroy(); }
-  graficoClienteOrigen = new Chart(document.getElementById("graficoClienteOrigen"), {
+  // ─────────────────────────────────────────────────────────────
+  // GRAFICO 2 — barras Córdoba vs Sevilla — SIEMPRE IGUAL
+  // usa datosSinOrigen para que siempre tenga las dos barras
+  // ─────────────────────────────────────────────────────────────
+  var cordobaBarras = 0;
+  var sevillaBarras = 0;
+  for (var i = 0; i < datosSinOrigen.porOrigen.length; i++) {
+    if (datosSinOrigen.porOrigen[i].nombre == "Cordoba") { cordobaBarras = datosSinOrigen.porOrigen[i].total; }
+    if (datosSinOrigen.porOrigen[i].nombre == "Sevilla")  { sevillaBarras = datosSinOrigen.porOrigen[i].total; }
+  }
+
+  if (graficoOrigen != null) { graficoOrigen.destroy(); }
+  graficoOrigen = new Chart(document.getElementById("graficoOrigen"), {
     type: "bar",
     data: {
       labels: ["Cordoba", "Sevilla"],
       datasets: [{
-        label: "Paquetes",
-        data: [datosCordoba, datosSevilla],
+        data: [cordobaBarras, sevillaBarras],
         backgroundColor: ["rgba(108,99,255,0.8)", "rgba(67,233,123,0.8)"],
         borderColor:     ["#6c63ff", "#43e97b"],
-        borderWidth: 2,
-        borderRadius: 8
+        borderWidth: 2, borderRadius: 8
       }]
     },
     options: {
@@ -416,152 +365,110 @@ function mostrarGraficosCliente(nombreCliente, datos) {
       }
     }
   });
-}
 
-
-// =============================================
-// FUNCION: ocultar graficos del cliente y volver a los generales
-// =============================================
-function ocultarGraficosCliente() {
-  document.getElementById("seccionGraficosCliente").style.display = "none";
-  document.getElementById("seccionGraficosGenerales").style.display = "block";
-
-  if (graficoClienteMes != null)    { graficoClienteMes.destroy();    graficoClienteMes = null; }
-  if (graficoClienteOrigen != null) { graficoClienteOrigen.destroy(); graficoClienteOrigen = null; }
-}
-
-
-// =============================================
-// FUNCION: graficos generales (sin filtro de cliente)
-// =============================================
-function hacerGraficosGenerales(datos) {
-
-  var etiquetasSalida = [];
-  var valoresSalida   = [];
-  for (var i = 0; i < datos.porSalida.length; i++) {
-    etiquetasSalida.push(datos.porSalida[i].nombre);
-    valoresSalida.push(datos.porSalida[i].total);
-  }
-
-  var etiquetasOrigen = [];
-  var valoresOrigen   = [];
-  for (var i = 0; i < datos.porOrigen.length; i++) {
-    etiquetasOrigen.push(datos.porOrigen[i].nombre);
-    valoresOrigen.push(datos.porOrigen[i].total);
-  }
-
-  var etiquetasMes = [];
-  var valoresMes   = [];
-  for (var i = 0; i < datos.porMes.length; i++) {
-    etiquetasMes.push(datos.porMes[i].nombre);
-    valoresMes.push(datos.porMes[i].total);
-  }
-
-  var colorTexto = getComputedStyle(document.body).getPropertyValue("--text-muted").trim();
-  var colorGrid  = document.body.classList.contains("claro") ? "rgba(200,200,220,0.5)" : "rgba(42,42,56,0.5)";
-
-  if (graficoSalida != null) { graficoSalida.destroy(); }
-  graficoSalida = new Chart(document.getElementById("graficoSalida"), {
-    type: "doughnut",
-    data: {
-      labels: etiquetasSalida,
-      datasets: [{ data: valoresSalida, backgroundColor: listaColores, borderWidth: 0 }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false, cutout: "60%",
-      plugins: { legend: { position: "bottom", labels: { color: colorTexto, font: { size: 10 }, boxWidth: 10 } } }
-    }
-  });
-
-  if (graficoOrigen != null) { graficoOrigen.destroy(); }
-  graficoOrigen = new Chart(document.getElementById("graficoOrigen"), {
-    type: "bar",
-    data: {
-      labels: etiquetasOrigen,
-      datasets: [{ data: valoresOrigen, backgroundColor: "rgba(108,99,255,0.7)", borderRadius: 4, borderWidth: 0 }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { ticks: { color: colorTexto, font: { size: 9 } }, grid: { color: colorGrid } },
-        y: { ticks: { color: colorTexto, font: { size: 9 } }, grid: { color: colorGrid } }
-      }
-    }
-  });
-
+  // ─────────────────────────────────────────────────────────────
+  // GRAFICO 3 — línea temporal
+  // Sin empresa: dos líneas (Córdoba morado, Sevilla verde)
+  // Con empresa: una sola línea con el color corporativo
+  // ─────────────────────────────────────────────────────────────
   if (graficoFecha != null) { graficoFecha.destroy(); }
 
-  // construir dos datasets: uno para Cordoba y otro para Sevilla
-  // primero recopilar todos los meses que existen
-  var mesesSet = {};
-  for (var i = 0; i < datos.porMesPorOrigen.length; i++) {
-    mesesSet[datos.porMesPorOrigen[i].mes] = true;
-  }
-  var mesesOrdenados = Object.keys(mesesSet).sort();
-
-  // rellenar valores por origen para cada mes (0 si no hay datos ese mes)
-  var valoresCordoba = [];
-  var valoresSevilla = [];
-  for (var i = 0; i < mesesOrdenados.length; i++) {
-    var mes = mesesOrdenados[i];
-    var totalCordoba = 0;
-    var totalSevilla = 0;
-    for (var j = 0; j < datos.porMesPorOrigen.length; j++) {
-      if (datos.porMesPorOrigen[j].mes == mes && datos.porMesPorOrigen[j].origen == "Cordoba") {
-        totalCordoba = datos.porMesPorOrigen[j].total;
-      }
-      if (datos.porMesPorOrigen[j].mes == mes && datos.porMesPorOrigen[j].origen == "Sevilla") {
-        totalSevilla = datos.porMesPorOrigen[j].total;
-      }
+  if (!hayCliente) {
+    // construir meses y separar por origen usando porMesPorOrigen
+    var mesesSet = {};
+    for (var i = 0; i < datosCompletos.porMesPorOrigen.length; i++) {
+      mesesSet[datosCompletos.porMesPorOrigen[i].mes] = true;
     }
-    valoresCordoba.push(totalCordoba);
-    valoresSevilla.push(totalSevilla);
-  }
+    var mesesOrdenados = Object.keys(mesesSet).sort();
 
-  graficoFecha = new Chart(document.getElementById("graficoFecha"), {
-    type: "line",
-    data: {
-      labels: mesesOrdenados,
-      datasets: [
-        {
-          label: "Cordoba",
-          data: valoresCordoba,
-          borderColor: "#6c63ff",
-          backgroundColor: "rgba(108,99,255,0.06)",
-          fill: true, tension: 0.4, pointRadius: 3,
-          pointBackgroundColor: "#6c63ff",
-          borderWidth: 2
-        },
-        {
-          label: "Sevilla",
-          data: valoresSevilla,
-          borderColor: "#43e97b",
-          backgroundColor: "rgba(67,233,123,0.06)",
-          fill: true, tension: 0.4, pointRadius: 3,
-          pointBackgroundColor: "#43e97b",
-          borderWidth: 2
-        }
-      ]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: {
-        legend: { display: true, labels: { color: colorTexto, font: { size: 10 }, boxWidth: 12 } }
+    var valoresCordoba = [];
+    var valoresSevilla = [];
+    for (var i = 0; i < mesesOrdenados.length; i++) {
+      var mes = mesesOrdenados[i];
+      var vc = 0; var vs = 0;
+      for (var j = 0; j < datosCompletos.porMesPorOrigen.length; j++) {
+        var f = datosCompletos.porMesPorOrigen[j];
+        if (f.mes == mes && f.origen == "Cordoba") { vc = f.total; }
+        if (f.mes == mes && f.origen == "Sevilla")  { vs = f.total; }
+      }
+      valoresCordoba.push(vc);
+      valoresSevilla.push(vs);
+    }
+
+    graficoFecha = new Chart(document.getElementById("graficoFecha"), {
+      type: "line",
+      data: {
+        labels: mesesOrdenados,
+        datasets: [
+          {
+            label: "Cordoba",
+            data: valoresCordoba,
+            borderColor: "#6c63ff", backgroundColor: "rgba(108,99,255,0.06)",
+            fill: true, tension: 0.4, pointRadius: 3, pointBackgroundColor: "#6c63ff", borderWidth: 2
+          },
+          {
+            label: "Sevilla",
+            data: valoresSevilla,
+            borderColor: "#43e97b", backgroundColor: "rgba(67,233,123,0.06)",
+            fill: true, tension: 0.4, pointRadius: 3, pointBackgroundColor: "#43e97b", borderWidth: 2
+          }
+        ]
       },
-      scales: {
-        x: { ticks: { color: colorTexto, font: { size: 9 } }, grid: { color: colorGrid } },
-        y: { ticks: { color: colorTexto, font: { size: 9 } }, grid: { color: colorGrid } }
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: true, labels: { color: colorTexto, font: { size: 10 }, boxWidth: 12 } } },
+        scales: {
+          x: { ticks: { color: colorTexto, font: { size: 9 } }, grid: { color: colorGrid } },
+          y: { ticks: { color: colorTexto, font: { size: 9 } }, grid: { color: colorGrid } }
+        }
       }
+    });
+
+  } else {
+    // una sola línea con color corporativo de la empresa
+    var etiquetasMesEmp = [];
+    var valoresMesEmp   = [];
+
+    // agrupar porMes (que viene con campo origen) sumando ambos origenes por mes
+    var totalesPorMes = {};
+    for (var i = 0; i < datosCompletos.porMes.length; i++) {
+      var fila = datosCompletos.porMes[i];
+      if (!totalesPorMes[fila.nombre]) { totalesPorMes[fila.nombre] = 0; }
+      totalesPorMes[fila.nombre] += parseInt(fila.total);
     }
-  });
+    var mesesEmp = Object.keys(totalesPorMes).sort();
+    for (var i = 0; i < mesesEmp.length; i++) {
+      etiquetasMesEmp.push(mesesEmp[i]);
+      valoresMesEmp.push(totalesPorMes[mesesEmp[i]]);
+    }
+
+    graficoFecha = new Chart(document.getElementById("graficoFecha"), {
+      type: "line",
+      data: {
+        labels: etiquetasMesEmp,
+        datasets: [{
+          label: nombreCliente,
+          data: valoresMesEmp,
+          borderColor: colores.primario,
+          backgroundColor: colores.fondo,
+          fill: true, tension: 0.4, pointRadius: 4,
+          pointBackgroundColor: colores.primario,
+          pointBorderColor: colores.secundario,
+          pointBorderWidth: 2, borderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: true, labels: { color: colorTexto, font: { size: 10 }, boxWidth: 12 } } },
+        scales: {
+          x: { ticks: { color: colorTexto, font: { size: 9 } }, grid: { color: colorGrid } },
+          y: { ticks: { color: colorTexto, font: { size: 9 } }, grid: { color: colorGrid } }
+        }
+      }
+    });
+  }
 }
 
-
-// =============================================
-// FUNCION: determinar si un color hex es claro
-// para decidir si el texto encima va en negro o blanco
-// =============================================
 function esClaroElColor(hex) {
   var r = parseInt(hex.slice(1, 3), 16);
   var g = parseInt(hex.slice(3, 5), 16);

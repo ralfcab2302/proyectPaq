@@ -66,54 +66,27 @@
 
   <!-- ===================== -->
   <!-- GRAFICOS GENERALES    -->
-  <!-- se ocultan al filtrar por cliente -->
-  <!-- ===================== -->
-  <div id="seccionGraficosGenerales" style="margin-bottom:1rem;">
-    <div class="grid-graficos" style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;">
-      <div class="caja" style="padding:1.25rem;">
-        <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:1rem;">Paquetes por salida</div>
-        <div class="contenedor-grafico"><canvas id="graficoSalida"></canvas></div>
-      </div>
-      <div class="caja" style="padding:1.25rem;">
-        <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:1rem;">Paquetes por origen</div>
-        <div class="contenedor-grafico"><canvas id="graficoOrigen"></canvas></div>
-      </div>
-      <div class="caja" style="padding:1.25rem;">
-        <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:1rem;">Paquetes por mes</div>
-        <div class="contenedor-grafico"><canvas id="graficoFecha"></canvas></div>
-      </div>
+  <!-- cabecera empresa — solo visible al filtrar por empresa -->
+  <div class="caja" id="cabeceraCliente" style="display:none;padding:0.85rem 1.25rem;margin-bottom:1rem;align-items:center;gap:0.75rem;border-left:4px solid var(--accent);">
+    <span id="badgeCliente" style="font-family:'Space Mono',monospace;font-size:0.72rem;font-weight:700;padding:4px 12px;border-radius:20px;letter-spacing:1px;"></span>
+    <div>
+      <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Filtrando empresa</div>
     </div>
   </div>
 
-
-  <!-- ===================== -->
-  <!-- GRAFICOS DEL CLIENTE  -->
-  <!-- aparecen al filtrar por empresa -->
-  <!-- ===================== -->
-  <div id="seccionGraficosCliente" style="display:none;margin-bottom:1rem;">
-
-    <!-- cabecera con el nombre y badge de la empresa -->
-    <div class="caja" style="padding:0.85rem 1.25rem;margin-bottom:1rem;display:flex;align-items:center;gap:0.75rem;border-left:4px solid var(--accent);" id="cabeceraCliente">
-      <span id="badgeCliente" style="font-family:'Space Mono',monospace;font-size:0.72rem;font-weight:700;padding:4px 12px;border-radius:20px;letter-spacing:1px;">GLS</span>
-      <div>
-        <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Viendo datos de</div>
-        <div style="font-family:'Space Mono',monospace;font-size:0.95rem;font-weight:700;" id="nombreClienteGrafico"></div>
-      </div>
+  <!-- 3 graficos — siempre visibles, cambian segun filtros -->
+  <div class="grid-graficos" style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1rem;">
+    <div class="caja" style="padding:1.25rem;">
+      <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:1rem;" id="tituloGrafico1">Paquetes por empresa</div>
+      <div class="contenedor-grafico"><canvas id="graficoSalida"></canvas></div>
     </div>
-
-    <!-- los dos graficos del cliente -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;" id="gridGraficosCliente">
-
-      <div class="caja" style="padding:1.25rem;">
-        <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:1rem;">Evolucion mensual</div>
-        <div class="contenedor-grafico"><canvas id="graficoClienteMes"></canvas></div>
-      </div>
-
-      <div class="caja" style="padding:1.25rem;">
-        <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:1rem;">Cordoba vs Sevilla</div>
-        <div class="contenedor-grafico"><canvas id="graficoClienteOrigen"></canvas></div>
-      </div>
-
+    <div class="caja" style="padding:1.25rem;">
+      <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:1rem;">Cordoba vs Sevilla</div>
+      <div class="contenedor-grafico"><canvas id="graficoOrigen"></canvas></div>
+    </div>
+    <div class="caja" style="padding:1.25rem;">
+      <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:1rem;" id="tituloGrafico3">Evolucion por mes</div>
+      <div class="contenedor-grafico"><canvas id="graficoFecha"></canvas></div>
     </div>
   </div>
 
