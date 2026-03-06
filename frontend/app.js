@@ -39,6 +39,41 @@ var coloresDefault = { primario: "#6c63ff", secundario: "#ff6584", fondo: "rgba(
 var token = localStorage.getItem("token");
 if (!token) { window.location.href = "/login.html"; }
 
+
+// =============================================
+// FUNCION: mostrar una notificacion toast
+// tipo: "exito" | "error" | "info"
+// =============================================
+function toast(mensaje, tipo) {
+
+  // tipo por defecto
+  if (!tipo) { tipo = "info"; }
+
+  // icono segun el tipo
+  var iconos = { exito: "✅", error: "❌", info: "ℹ️" };
+  var icono = iconos[tipo] || "ℹ️";
+
+  // crear el elemento
+  var el = document.createElement("div");
+  el.className = "toast " + tipo;
+  el.innerHTML = "<span class='toast-icono'>" + icono + "</span><span class='toast-texto'>" + mensaje + "</span>";
+
+  // meterlo en el container
+  document.getElementById("toast-container").appendChild(el);
+
+  // pequeño delay para que la transicion arranque bien
+  setTimeout(function() { el.classList.add("show"); }, 20);
+
+  // quitarlo despues de 3 segundos
+  setTimeout(function() {
+    el.classList.add("hide");
+    el.classList.remove("show");
+    setTimeout(function() {
+      if (el.parentNode) { el.parentNode.removeChild(el); }
+    }, 300);
+  }, 3000);
+}
+
 document.getElementById("nombreUsuario").textContent = localStorage.getItem("nombre");
 
 // aplicar tema guardado
@@ -503,13 +538,17 @@ function guardarEdicion() {
   .then(function(res) { return res.json(); })
   .then(function() {
     cerrarModalEditar();
+    toast("Paquete actualizado correctamente", "exito");
     var origen = document.getElementById("filtroOrigen").value;
     var salida = document.getElementById("filtroSalida").value;
     var codigo = document.getElementById("inputBusqueda").value;
     cargarDatos(origen, salida, paginaActual, codigo);
     cargarEstadisticas(origen, salida, codigo);
   })
-  .catch(function(err) { console.log("Error editar: " + err.message); });
+  .catch(function(err) {
+    toast("Error al actualizar el paquete", "error");
+    console.log("Error editar: " + err.message);
+  });
 }
 
 
@@ -537,13 +576,17 @@ function confirmarEliminar() {
   .then(function(res) { return res.json(); })
   .then(function() {
     cerrarModalEliminar();
+    toast("Paquete eliminado", "error");
     var origen = document.getElementById("filtroOrigen").value;
     var salida = document.getElementById("filtroSalida").value;
     var codigo = document.getElementById("inputBusqueda").value;
     cargarDatos(origen, salida, paginaActual, codigo);
     cargarEstadisticas(origen, salida, codigo);
   })
-  .catch(function(err) { console.log("Error eliminar: " + err.message); });
+  .catch(function(err) {
+    toast("Error al eliminar el paquete", "error");
+    console.log("Error eliminar: " + err.message);
+  });
 }
 
 
