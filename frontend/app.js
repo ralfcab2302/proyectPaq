@@ -191,7 +191,7 @@ function cargarDatos(origen, salida, pagina, codigoBarras) {
       var fecha = new Date(p.fechaSalida).toLocaleDateString("es-ES");
       html = html + "<tr>";
       html = html + "<td style='color:var(--text-muted);font-family:Space Mono,monospace;font-size:0.75rem;'>#" + p.id + "</td>";
-      html = html + "<td class='columna-barcode' style='font-family:Space Mono,monospace;color:var(--accent);font-size:0.78rem;'>" + p.codigoBarras + "</td>";
+      html = html + "<td class='columna-barcode'><a href='/paquete.html?codigo=" + encodeURIComponent(p.codigoBarras) + "' style='font-family:Space Mono,monospace;color:var(--accent);font-size:0.78rem;text-decoration:none;border-bottom:1px dashed var(--accent);'>" + p.codigoBarras + "</a></td>";
       html = html + "<td class='columna-fecha' style='color:var(--text-muted);'>" + fecha + "</td>";
       html = html + "<td><span class='etiqueta-verde'>" + p.origen + "</span></td>";
       html = html + "<td><span class='etiqueta-morada'>" + p.nombreCliente + "</span></td>";
@@ -649,3 +649,107 @@ document.getElementById("modalEliminar").addEventListener("click", function(e) {
 cargarClientes();
 cargarDatos("", "", 1, "");
 cargarEstadisticas("", "", "");
+
+
+// =============================================
+// AUTOCOMPLETADO DEL BUSCADOR
+// =============================================
+var timerAutocomplete = null;
+var indiceSeleccionado = -1;
+
+function mostrarSugerencias(sugerencias) {
+  var lista = document.getElementById("listaSugerencias");
+  lista.innerHTML = "";
+  indiceSeleccionado = -1;
+
+  if (sugerencias.length == 0) {
+    lista.style.display = "none";
+    return;
+  }
+
+  for (var i = 0; i < sugerencias.length; i++) {
+    var item = document.createElement("div");
+    item.className = "sugerencia-item";
+    item.textContent = sugerencias[i];
+    item.setAttribute("data-codigo", sugerencias[i]);
+
+    // al hacer click en una sugerencia
+    (function(codigo) {
+      item.addEventListener("mousedown", function(e) {
+        e.preventDefault(); // evita que el input pierda foco antes del click
+        document.getElementById("inputBusqueda").value = codigo;
+        lista.style.display = "none";
+        buscar();
+      });
+    })(sugerencias[i]);
+
+    lista.appendChild(item);
+  }
+
+  lista.style.display = "block";
+}
+
+function ocultarSugerencias() {
+  var lista = document.getElementById("listaSugerencias");
+  lista.style.display = "none";
+  indiceSeleccionado = -1;
+}
+
+function buscarSugerencias() {
+  clearTimeout(timerAutocomplete);
+  var valor = document.getElementById("inputBusqueda").value;
+
+  if (valor.length < 2) {
+    ocultarSugerencias();
+    buscar();
+    return;
+  }
+
+  buscar(); // actualizar tabla en paralelo
+
+  timerAutocomplete = setTimeout(function() {
+    var url = "http://localhost:3000/api/paquetes?pagina=1&limite=8&codigoBarras=" + encodeURIComponent(valor);
+    fetch(url, { headers: { "Authorization": "Bearer " + token } })
+    .then(function(res) { return res.json(); })
+    .then(function(datos) {
+      var codigos = [];
+      for (var i = 0; i < datos.datos.length; i++) {
+        codigos.push(datos.datos[i].codigoBarras);
+      }
+      mostrarSugerencias(codigos);
+    })
+    .catch(function() { ocultarSugerencias(); });
+  }, 200);
+}
+
+// navegacion con teclado por las sugerencias
+document.getElementById("inputBusqueda").addEventListener("keydown", function(e) {
+  var lista = document.getElementById("listaSugerencias");
+  var items = lista.querySelectorAll(".sugerencia-item");
+
+  if (e.key == "ArrowDown") {
+    e.preventDefault();
+    indiceSeleccionado = Math.min(indiceSeleccionado + 1, items.length - 1);
+    for (var i = 0; i < items.length; i++) {
+      items[i].classList.toggle("sugerencia-activa", i == indiceSeleccionado);
+    }
+  } else if (e.key == "ArrowUp") {
+    e.preventDefault();
+    indiceSeleccionado = Math.max(indiceSeleccionado - 1, -1);
+    for (var i = 0; i < items.length; i++) {
+      items[i].classList.toggle("sugerencia-activa", i == indiceSeleccionado);
+    }
+  } else if (e.key == "Enter" && indiceSeleccionado >= 0) {
+    e.preventDefault();
+    document.getElementById("inputBusqueda").value = items[indiceSeleccionado].getAttribute("data-codigo");
+    ocultarSugerencias();
+    buscar();
+  } else if (e.key == "Escape") {
+    ocultarSugerencias();
+  }
+});
+
+// ocultar al perder foco
+document.getElementById("inputBusqueda").addEventListener("blur", function() {
+  setTimeout(ocultarSugerencias, 150);
+});

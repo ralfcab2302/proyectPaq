@@ -58,7 +58,10 @@
   <!-- BUSCADOR -->
   <div class="caja" style="padding:1rem 1.25rem;margin-bottom:1rem;">
     <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">Buscar por codigo de barras</div>
-    <input type="text" id="inputBusqueda" placeholder="Escribe un codigo de barras..." oninput="buscar()">
+    <div style="position:relative;">
+    <input type="text" id="inputBusqueda" placeholder="Escribe un codigo de barras..." oninput="buscarSugerencias()" autocomplete="off">
+    <div id="listaSugerencias" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:500;margin-top:4px;"></div>
+  </div>
   </div>
 
   <p id="infoResultados" style="font-size:0.8rem;color:var(--text-muted);margin-bottom:1rem;padding:0 0.25rem;"></p>
