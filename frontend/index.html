@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gestion de Paquetes</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- CABECERA -->
+  <div class="caja" style="padding:1rem 1.25rem;display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div style="width:38px;height:38px;background:linear-gradient(135deg,#6c63ff,#ff6584);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;">📦</div>
+      <div>
+        <div style="font-family:'Space Mono',monospace;font-size:1rem;font-weight:700;">Paq<span style="color:#6c63ff;">Track</span></div>
+        <div style="font-size:0.65rem;color:var(--text-muted);">Sistema de envios</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <span style="font-size:0.8rem;color:var(--text-muted);">Hola, <b style="color:var(--text);" id="nombreUsuario"></b></span>
+      <button class="boton-tema" id="botonTema" onclick="cambiarTema()" title="Cambiar tema">☀️</button>
+      <button class="boton-rojo" onclick="cerrarSesion()">// salir</button>
+    </div>
+  </div>
+
+  <!-- FILTROS -->
+  <div class="caja" style="padding:1rem 1.25rem;margin-bottom:1rem;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:0.75rem;align-items:flex-end;">
+      <div>
+        <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">Origen</div>
+        <select id="filtroOrigen" onchange="buscar()">
+          <option value="">Todos</option>
+          <option value="Cordoba">Cordoba</option>
+          <option value="Sevilla">Sevilla</option>
+        </select>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">Salida</div>
+        <select id="filtroSalida" onchange="buscar()">
+          <option value="">Todos</option>
+        </select>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">Por pagina</div>
+        <select id="limitePagina" onchange="buscar()">
+          <option value="25">25</option>
+          <option value="50" selected>50</option>
+          <option value="100">100</option>
+        </select>
+      </div>
+      <button class="boton-gris" onclick="limpiarFiltros()">limpiar</button>
+    </div>
+  </div>
+
+  <!-- BUSCADOR -->
+  <div class="caja" style="padding:1rem 1.25rem;margin-bottom:1rem;">
+    <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">Buscar por codigo de barras</div>
+    <input type="text" id="inputBusqueda" placeholder="Escribe un codigo de barras..." oninput="buscar()">
+  </div>
+
+  <p id="infoResultados" style="font-size:0.8rem;color:var(--text-muted);margin-bottom:1rem;padding:0 0.25rem;"></p>
+
+
+  <!-- ===================== -->
+  <!-- GRAFICOS GENERALES    -->
+  <!-- se ocultan al filtrar por cliente -->
+  <!-- ===================== -->
+  <div id="seccionGraficosGenerales" style="margin-bottom:1rem;">
+    <div class="grid-graficos" style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;">
+      <div class="caja" style="padding:1.25rem;">
+        <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:1rem;">Paquetes por salida</div>
+        <div class="contenedor-grafico"><canvas id="graficoSalida"></canvas></div>
+      </div>
+      <div class="caja" style="padding:1.25rem;">
+        <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:1rem;">Paquetes por origen</div>
+        <div class="contenedor-grafico"><canvas id="graficoOrigen"></canvas></div>
+      </div>
+      <div class="caja" style="padding:1.25rem;">
+        <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:1rem;">Paquetes por mes</div>
+        <div class="contenedor-grafico"><canvas id="graficoFecha"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ===================== -->
+  <!-- GRAFICOS DEL CLIENTE  -->
+  <!-- aparecen al filtrar por empresa -->
+  <!-- ===================== -->
+  <div id="seccionGraficosCliente" style="display:none;margin-bottom:1rem;">
+
+    <!-- cabecera con el nombre y badge de la empresa -->
+    <div class="caja" style="padding:0.85rem 1.25rem;margin-bottom:1rem;display:flex;align-items:center;gap:0.75rem;border-left:4px solid var(--accent);" id="cabeceraCliente">
+      <span id="badgeCliente" style="font-family:'Space Mono',monospace;font-size:0.72rem;font-weight:700;padding:4px 12px;border-radius:20px;letter-spacing:1px;">GLS</span>
+      <div>
+        <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Viendo datos de</div>
+        <div style="font-family:'Space Mono',monospace;font-size:0.95rem;font-weight:700;" id="nombreClienteGrafico"></div>
+      </div>
+    </div>
+
+    <!-- los dos graficos del cliente -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;" id="gridGraficosCliente">
+
+      <div class="caja" style="padding:1.25rem;">
+        <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:1rem;">Evolucion mensual</div>
+        <div class="contenedor-grafico"><canvas id="graficoClienteMes"></canvas></div>
+      </div>
+
+      <div class="caja" style="padding:1.25rem;">
+        <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:1rem;">Cordoba vs Sevilla</div>
+        <div class="contenedor-grafico"><canvas id="graficoClienteOrigen"></canvas></div>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- TABLA -->
+  <div class="caja" style="margin-bottom:1rem;overflow:hidden;">
+    <div style="padding:1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
+      <span style="font-family:'Space Mono',monospace;font-size:0.85rem;">// registros</span>
+      <span id="contador" style="font-size:0.78rem;color:var(--text-muted);background:var(--bg-input);padding:4px 12px;border-radius:20px;border:1px solid var(--border);"></span>
+    </div>
+    <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>#ID</th>
+            <th class="columna-barcode">Codigo de barras</th>
+            <th class="columna-fecha">Fecha salida</th>
+            <th>Origen</th>
+            <th>Salida</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="tablaCuerpo">
+          <tr><td colspan="6" style="text-align:center;padding:3rem;color:var(--text-muted);">Cargando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div id="paginacion" style="display:flex;gap:6px;justify-content:center;padding:1rem;flex-wrap:wrap;"></div>
+  </div>
+
+
+  <!-- MODAL EDITAR -->
+  <div class="modal-fondo" id="modalEditar">
+    <div class="modal-caja">
+      <div class="modal-titulo">
+        <span>✏️ &nbsp;Editar paquete</span>
+        <button class="boton-icono" onclick="cerrarModalEditar()">✕</button>
+      </div>
+      <div class="modal-campo">
+        <label>Fecha de salida</label>
+        <input type="date" id="editarFecha">
+      </div>
+      <div class="modal-campo">
+        <label>Origen</label>
+        <select id="editarOrigen">
+          <option value="Cordoba">Cordoba</option>
+          <option value="Sevilla">Sevilla</option>
+        </select>
+      </div>
+      <div class="modal-campo">
+        <label>Salida (empresa)</label>
+        <select id="editarSalida"></select>
+      </div>
+      <div class="modal-botones">
+        <button class="boton-gris" onclick="cerrarModalEditar()">Cancelar</button>
+        <button class="boton-azul" onclick="guardarEdicion()">Guardar cambios</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- MODAL ELIMINAR -->
+  <div class="modal-fondo" id="modalEliminar">
+    <div class="modal-caja">
+      <div class="modal-titulo">
+        <span>🗑️ &nbsp;Eliminar paquete</span>
+        <button class="boton-icono" onclick="cerrarModalEliminar()">✕</button>
+      </div>
+      <p class="modal-confirmar-texto">
+        ¿Seguro que quieres eliminar el paquete<br>
+        <span class="modal-confirmar-codigo" id="codigoABorrar"></span>?<br><br>
+        Esta accion no se puede deshacer.
+      </p>
+      <div class="modal-botones">
+        <button class="boton-gris" onclick="cerrarModalEliminar()">Cancelar</button>
+        <button class="boton-rojo" style="width:100%;" onclick="confirmarEliminar()">Si, eliminar</button>
+      </div>
+    </div>
+  </div>
+
+
+  <script src="app.js"></script>
+
+</body>
+</html> 
