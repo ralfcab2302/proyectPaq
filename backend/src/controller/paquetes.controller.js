@@ -284,10 +284,35 @@ const obtenerEstadisticas = async (req, res) => {
       valores
     );
 
+    // contar paquetes por mes separado por origen (Cordoba y Sevilla) — sin filtro de origen para ver siempre las dos
+    var wheresinOrigen = "WHERE 1=1";
+    var valoresSinOrigen = [];
+    if (salida != "") {
+      wheresinOrigen = wheresinOrigen + " AND p.salida = ?";
+      valoresSinOrigen.push(salida);
+    }
+    if (codigoBarras != "") {
+      wheresinOrigen = wheresinOrigen + " AND p.codigoBarras LIKE ?";
+      valoresSinOrigen.push("%" + codigoBarras + "%");
+    }
+
+    // porMesPorOrigen: incluye campo origen para que el frontend pueda separar las dos lineas
+    var [porMesPorOrigen] = await pool.query(
+      "SELECT DATE_FORMAT(p.fechaSalida, '%Y-%m') as mes, p.origen as origen, COUNT(*) as total FROM paquetes p JOIN clientes c ON p.salida = c.id " + wheresinOrigen + " GROUP BY DATE_FORMAT(p.fechaSalida, '%Y-%m'), p.origen ORDER BY mes ASC",
+      valoresSinOrigen
+    );
+
+    // porMes con origen: version de porMes que incluye el campo origen (para graficos de cliente)
+    var [porMesConOrigen] = await pool.query(
+      "SELECT DATE_FORMAT(p.fechaSalida, '%Y-%m') as nombre, p.origen as origen, COUNT(*) as total FROM paquetes p JOIN clientes c ON p.salida = c.id " + where + " GROUP BY DATE_FORMAT(p.fechaSalida, '%Y-%m'), p.origen ORDER BY nombre ASC",
+      valores
+    );
+
     res.json({
-      porSalida: porSalida,
-      porOrigen: porOrigen,
-      porMes:    porMes
+      porSalida:        porSalida,
+      porOrigen:        porOrigen,
+      porMes:           porMesConOrigen,
+      porMesPorOrigen:  porMesPorOrigen
     });
 
   } catch (error) {

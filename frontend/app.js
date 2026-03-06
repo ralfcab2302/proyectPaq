@@ -254,8 +254,8 @@ function cargarEstadisticas(origen, salida, codigoBarras) {
   Promise.all([p1, p2])
   .then(function(res) {
     mostrarGraficosCliente(nombreCliente, {
-      porMes:    res[0].porMes,     // meses respetan el filtro de origen
-      porOrigen: res[1].porOrigen   // origen siempre muestra Cordoba Y Sevilla
+      porMes:    res[0].porMes,     // incluye campo origen — para las dos lineas Cordoba/Sevilla
+      porOrigen: res[1].porOrigen   // sin filtro origen — siempre muestra las dos barras
     });
   })
   .catch(function(err) { console.log("Error estadisticas cliente: " + err.message); });
@@ -288,36 +288,92 @@ function mostrarGraficosCliente(nombreCliente, datos) {
   var colorTexto = getComputedStyle(document.body).getPropertyValue("--text-muted").trim();
   var colorGrid  = document.body.classList.contains("claro") ? "rgba(200,200,220,0.5)" : "rgba(42,42,56,0.5)";
 
-  // ---- GRAFICO 1: linea por mes con color de la empresa ----
-  var etiquetasMes = [];
-  var valoresMes   = [];
+  // ---- GRAFICO 1: dos lineas por mes (Cordoba y Sevilla) con colores de la empresa ----
+  // construir los meses disponibles
+  var mesesSetCliente = {};
   for (var i = 0; i < datos.porMes.length; i++) {
-    etiquetasMes.push(datos.porMes[i].nombre);
-    valoresMes.push(datos.porMes[i].total);
+    mesesSetCliente[datos.porMes[i].nombre] = true;
+  }
+  var mesesCliente = Object.keys(mesesSetCliente).sort();
+
+  // rellenar valores separados por origen
+  var vCordobaCliente = [];
+  var vSevillaCliente = [];
+  for (var i = 0; i < mesesCliente.length; i++) {
+    var mes = mesesCliente[i];
+    var vc = 0;
+    var vs = 0;
+    for (var j = 0; j < datos.porMes.length; j++) {
+      var fila = datos.porMes[j];
+      if (fila.nombre == mes) {
+        if (fila.origen == "Cordoba") { vc = fila.total; }
+        if (fila.origen == "Sevilla") { vs = fila.total; }
+      }
+    }
+    vCordobaCliente.push(vc);
+    vSevillaCliente.push(vs);
+  }
+
+  // si porMes no tiene campo origen (es la query general), caer en una sola linea
+  var tieneOrigen = datos.porMes.length > 0 && datos.porMes[0].origen != undefined;
+  var datasetsClienteMes = [];
+
+  if (tieneOrigen) {
+    datasetsClienteMes = [
+      {
+        label: "Cordoba",
+        data: vCordobaCliente,
+        borderColor: colores.primario,
+        backgroundColor: colores.fondo,
+        fill: true, tension: 0.4, pointRadius: 4,
+        pointBackgroundColor: colores.primario,
+        pointBorderColor: colores.secundario,
+        pointBorderWidth: 2, borderWidth: 2
+      },
+      {
+        label: "Sevilla",
+        data: vSevillaCliente,
+        borderColor: colores.secundario,
+        backgroundColor: "rgba(0,0,0,0.03)",
+        fill: true, tension: 0.4, pointRadius: 4,
+        pointBackgroundColor: colores.secundario,
+        pointBorderColor: colores.primario,
+        pointBorderWidth: 2, borderWidth: 2,
+        borderDash: [5, 3]
+      }
+    ];
+  } else {
+    // fallback: una sola linea con el total
+    var valoresMes = [];
+    var etiquetasMes = [];
+    for (var i = 0; i < datos.porMes.length; i++) {
+      etiquetasMes.push(datos.porMes[i].nombre);
+      valoresMes.push(datos.porMes[i].total);
+    }
+    mesesCliente = etiquetasMes;
+    datasetsClienteMes = [{
+      label: nombreCliente,
+      data: valoresMes,
+      borderColor: colores.primario,
+      backgroundColor: colores.fondo,
+      fill: true, tension: 0.4, pointRadius: 4,
+      pointBackgroundColor: colores.primario,
+      pointBorderColor: colores.secundario,
+      pointBorderWidth: 2, borderWidth: 2
+    }];
   }
 
   if (graficoClienteMes != null) { graficoClienteMes.destroy(); }
   graficoClienteMes = new Chart(document.getElementById("graficoClienteMes"), {
     type: "line",
     data: {
-      labels: etiquetasMes,
-      datasets: [{
-        label: nombreCliente,
-        data: valoresMes,
-        borderColor: colores.primario,
-        backgroundColor: colores.fondo,
-        fill: true,
-        tension: 0.4,
-        pointRadius: 4,
-        pointBackgroundColor: colores.primario,
-        pointBorderColor: colores.secundario,
-        pointBorderWidth: 2
-      }]
+      labels: mesesCliente,
+      datasets: datasetsClienteMes
     },
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: {
-        legend: { display: false }
+        legend: { display: true, labels: { color: colorTexto, font: { size: 10 }, boxWidth: 12 } }
       },
       scales: {
         x: { ticks: { color: colorTexto, font: { size: 9 } }, grid: { color: colorGrid } },
@@ -326,29 +382,29 @@ function mostrarGraficosCliente(nombreCliente, datos) {
     }
   });
 
-  // ---- GRAFICO 2: barras Cordoba vs Sevilla con colores de la empresa ----
-  var etiquetasOrigen = [];
-  var valoresOrigen   = [];
-  var bgColores       = [];
+  // ---- GRAFICO 2: barras Cordoba vs Sevilla con colores fijos por ciudad ----
+  // Cordoba siempre en morado (#6c63ff), Sevilla siempre en verde (#43e97b)
+  // independientemente del cliente seleccionado
 
+  var datosCordoba = 0;
+  var datosSevilla = 0;
   for (var i = 0; i < datos.porOrigen.length; i++) {
-    etiquetasOrigen.push(datos.porOrigen[i].nombre);
-    valoresOrigen.push(datos.porOrigen[i].total);
-    // alternar primario y secundario por barra
-    bgColores.push(i % 2 == 0 ? colores.primario : colores.secundario);
+    if (datos.porOrigen[i].nombre == "Cordoba") { datosCordoba = datos.porOrigen[i].total; }
+    if (datos.porOrigen[i].nombre == "Sevilla")  { datosSevilla = datos.porOrigen[i].total; }
   }
 
   if (graficoClienteOrigen != null) { graficoClienteOrigen.destroy(); }
   graficoClienteOrigen = new Chart(document.getElementById("graficoClienteOrigen"), {
     type: "bar",
     data: {
-      labels: etiquetasOrigen,
+      labels: ["Cordoba", "Sevilla"],
       datasets: [{
         label: "Paquetes",
-        data: valoresOrigen,
-        backgroundColor: bgColores,
-        borderRadius: 6,
-        borderWidth: 0
+        data: [datosCordoba, datosSevilla],
+        backgroundColor: ["rgba(108,99,255,0.8)", "rgba(67,233,123,0.8)"],
+        borderColor:     ["#6c63ff", "#43e97b"],
+        borderWidth: 2,
+        borderRadius: 8
       }]
     },
     options: {
@@ -435,20 +491,64 @@ function hacerGraficosGenerales(datos) {
   });
 
   if (graficoFecha != null) { graficoFecha.destroy(); }
+
+  // construir dos datasets: uno para Cordoba y otro para Sevilla
+  // primero recopilar todos los meses que existen
+  var mesesSet = {};
+  for (var i = 0; i < datos.porMesPorOrigen.length; i++) {
+    mesesSet[datos.porMesPorOrigen[i].mes] = true;
+  }
+  var mesesOrdenados = Object.keys(mesesSet).sort();
+
+  // rellenar valores por origen para cada mes (0 si no hay datos ese mes)
+  var valoresCordoba = [];
+  var valoresSevilla = [];
+  for (var i = 0; i < mesesOrdenados.length; i++) {
+    var mes = mesesOrdenados[i];
+    var totalCordoba = 0;
+    var totalSevilla = 0;
+    for (var j = 0; j < datos.porMesPorOrigen.length; j++) {
+      if (datos.porMesPorOrigen[j].mes == mes && datos.porMesPorOrigen[j].origen == "Cordoba") {
+        totalCordoba = datos.porMesPorOrigen[j].total;
+      }
+      if (datos.porMesPorOrigen[j].mes == mes && datos.porMesPorOrigen[j].origen == "Sevilla") {
+        totalSevilla = datos.porMesPorOrigen[j].total;
+      }
+    }
+    valoresCordoba.push(totalCordoba);
+    valoresSevilla.push(totalSevilla);
+  }
+
   graficoFecha = new Chart(document.getElementById("graficoFecha"), {
     type: "line",
     data: {
-      labels: etiquetasMes,
-      datasets: [{
-        data: valoresMes,
-        borderColor: "#43e97b",
-        backgroundColor: "rgba(67,233,123,0.05)",
-        fill: true, tension: 0.4, pointRadius: 3, pointBackgroundColor: "#43e97b"
-      }]
+      labels: mesesOrdenados,
+      datasets: [
+        {
+          label: "Cordoba",
+          data: valoresCordoba,
+          borderColor: "#6c63ff",
+          backgroundColor: "rgba(108,99,255,0.06)",
+          fill: true, tension: 0.4, pointRadius: 3,
+          pointBackgroundColor: "#6c63ff",
+          borderWidth: 2
+        },
+        {
+          label: "Sevilla",
+          data: valoresSevilla,
+          borderColor: "#43e97b",
+          backgroundColor: "rgba(67,233,123,0.06)",
+          fill: true, tension: 0.4, pointRadius: 3,
+          pointBackgroundColor: "#43e97b",
+          borderWidth: 2
+        }
+      ]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
+      plugins: {
+        legend: { display: true, labels: { color: colorTexto, font: { size: 10 }, boxWidth: 12 } }
+      },
       scales: {
         x: { ticks: { color: colorTexto, font: { size: 9 } }, grid: { color: colorGrid } },
         y: { ticks: { color: colorTexto, font: { size: 9 } }, grid: { color: colorGrid } }
