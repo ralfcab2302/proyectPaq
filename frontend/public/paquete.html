@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Detalle de paquete</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- CABECERA -->
+  <div class="caja" style="padding:1rem 1.25rem;display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap;gap:0.5rem;">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <a href="/index.html" style="text-decoration:none;">
+        <div style="width:38px;height:38px;background:linear-gradient(135deg,#6c63ff,#ff6584);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;">📦</div>
+      </a>
+      <div>
+        <div style="font-family:'Space Mono',monospace;font-size:1rem;font-weight:700;">Paq<span style="color:#6c63ff;">Track</span></div>
+        <div style="font-size:0.65rem;color:var(--text-muted);">Detalle de paquete</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <button class="boton-tema" id="botonTema" onclick="cambiarTema()" title="Cambiar tema">☀️</button>
+      <a href="/index.html" style="text-decoration:none;">
+        <button class="boton-gris" style="width:auto;">← Volver</button>
+      </a>
+    </div>
+  </div>
+
+
+  <!-- CONTENIDO — se rellena con JS -->
+  <div id="contenido">
+    <div class="caja" style="padding:3rem;text-align:center;color:var(--text-muted);">
+      Cargando...
+    </div>
+  </div>
+
+
+  <!-- toast container -->
+  <div id="toast-container"></div>
+
+
+  <script>
+  "use strict";
+
+  var token = localStorage.getItem("token");
+  if (!token) { window.location.href = "/login.html"; }
+
+  // aplicar tema guardado
+  var temaGuardado = localStorage.getItem("tema");
+  if (temaGuardado == "claro") {
+    document.body.classList.add("claro");
+    document.getElementById("botonTema").textContent = "🌙";
+  }
+
+  function cambiarTema() {
+    var esClaro = document.body.classList.toggle("claro");
+    localStorage.setItem("tema", esClaro ? "claro" : "oscuro");
+    document.getElementById("botonTema").textContent = esClaro ? "🌙" : "☀️";
+  }
+
+  function toast(mensaje, tipo) {
+    if (!tipo) { tipo = "info"; }
+    var iconos = { exito: "✅", error: "❌", info: "ℹ️" };
+    var el = document.createElement("div");
+    el.className = "toast " + tipo;
+    el.innerHTML = "<span class='toast-icono'>" + (iconos[tipo] || "ℹ️") + "</span><span class='toast-texto'>" + mensaje + "</span>";
+    document.getElementById("toast-container").appendChild(el);
+    setTimeout(function() { el.classList.add("show"); }, 20);
+    setTimeout(function() {
+      el.classList.add("hide"); el.classList.remove("show");
+      setTimeout(function() { if (el.parentNode) { el.parentNode.removeChild(el); } }, 300);
+    }, 3000);
+  }
+
+  // coger el codigo de la URL
+  var params = new URLSearchParams(window.location.search);
+  var codigo = params.get("codigo");
+
+  if (!codigo) {
+    document.getElementById("contenido").innerHTML = '<div class="caja" style="padding:3rem;text-align:center;color:var(--accent2);">No se ha indicado ningún código de barras.</div>';
+  } else {
+    cargarPaquete(codigo);
+  }
+
+  function cargarPaquete(codigo) {
+    fetch("http://localhost:3000/api/paquetes/codigo/" + encodeURIComponent(codigo), {
+      headers: { "Authorization": "Bearer " + token }
+    })
+    .then(function(res) {
+      if (res.status == 404) { return null; }
+      if (res.status == 401 || res.status == 403) { window.location.href = "/login.html"; return null; }
+      return res.json();
+    })
+    .then(function(p) {
+      if (!p) {
+        document.getElementById("contenido").innerHTML = '<div class="caja" style="padding:3rem;text-align:center;color:var(--accent2);">Paquete no encontrado: <b>' + codigo + '</b></div>';
+        return;
+      }
+
+      var fecha      = new Date(p.fechaSalida).toLocaleDateString("es-ES", { day:"2-digit", month:"long", year:"numeric" });
+      var fechaCorta = new Date(p.fechaSalida).toISOString().split("T")[0];
+
+      document.title = "Paquete " + p.codigoBarras + " — PaqTrack";
+
+      document.getElementById("contenido").innerHTML =
+        '<div style="max-width:600px;margin:0 auto;">' +
+
+          // codigo de barras grande
+          '<div class="caja" style="padding:2rem;text-align:center;margin-bottom:1rem;">' +
+            '<div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:2px;margin-bottom:0.5rem;">Codigo de barras</div>' +
+            '<div style="font-family:Space Mono,monospace;font-size:1.4rem;color:var(--accent);letter-spacing:2px;word-break:break-all;">' + p.codigoBarras + '</div>' +
+            '<div style="margin-top:1rem;">' +
+              '<button class="boton-gris" style="width:auto;padding:6px 16px;font-size:0.78rem;" onclick="copiarCodigo(\'' + p.codigoBarras + '\')">📋 Copiar código</button>' +
+            '</div>' +
+          '</div>' +
+
+          // detalles
+          '<div class="caja" style="overflow:hidden;margin-bottom:1rem;">' +
+            '<div style="padding:1rem 1.25rem;border-bottom:1px solid var(--border);">' +
+              '<span style="font-family:Space Mono,monospace;font-size:0.85rem;">// detalles</span>' +
+            '</div>' +
+            '<table style="width:100%;border-collapse:collapse;">' +
+              fila("ID interno",   "#" + p.id) +
+              fila("Fecha salida", fecha) +
+              fila("Origen",       '<span class="etiqueta-verde">' + p.origen + '</span>') +
+              fila("Salida",       '<span class="etiqueta-morada">' + p.nombreCliente + '</span>') +
+            '</table>' +
+          '</div>' +
+
+          // acciones
+          '<div style="display:flex;gap:0.75rem;">' +
+            '<button class="boton-azul" onclick="abrirEditar(\'' + p.id + '\',\'' + fechaCorta + '\',\'' + p.origen + '\',\'' + p.salida + '\')">✏️ Editar</button>' +
+            '<button class="boton-rojo" style="width:100%;" onclick="abrirEliminar(\'' + p.id + '\',\'' + p.codigoBarras + '\')">🗑️ Eliminar</button>' +
+          '</div>' +
+
+        '</div>' +
+
+        // modal editar
+        '<div class="modal-fondo" id="modalEditar">' +
+          '<div class="modal-caja">' +
+            '<div class="modal-titulo"><span>✏️ Editar paquete</span><button class="boton-icono" onclick="cerrarEditar()">✕</button></div>' +
+            '<div class="modal-campo"><label>Fecha de salida</label><input type="date" id="editarFecha"></div>' +
+            '<div class="modal-campo"><label>Origen</label><select id="editarOrigen"><option value="Cordoba">Cordoba</option><option value="Sevilla">Sevilla</option></select></div>' +
+            '<div class="modal-campo"><label>Salida (empresa)</label><select id="editarSalida"></select></div>' +
+            '<div class="modal-botones"><button class="boton-gris" onclick="cerrarEditar()">Cancelar</button><button class="boton-azul" onclick="guardarEdicion()">Guardar</button></div>' +
+          '</div>' +
+        '</div>' +
+
+        // modal eliminar
+        '<div class="modal-fondo" id="modalEliminar">' +
+          '<div class="modal-caja">' +
+            '<div class="modal-titulo"><span>🗑️ Eliminar paquete</span><button class="boton-icono" onclick="cerrarEliminar()">✕</button></div>' +
+            '<p class="modal-confirmar-texto">¿Seguro que quieres eliminar el paquete<br><span class="modal-confirmar-codigo" id="codigoEliminar"></span>?<br><br>Esta accion no se puede deshacer.</p>' +
+            '<div class="modal-botones"><button class="boton-gris" onclick="cerrarEliminar()">Cancelar</button><button class="boton-rojo" style="width:100%;" onclick="confirmarEliminar()">Si, eliminar</button></div>' +
+          '</div>' +
+        '</div>';
+
+      // cargar clientes en el select del modal
+      cargarClientesSelect();
+
+      // eventos para cerrar modales al click fuera
+      document.getElementById("modalEditar").addEventListener("click", function(e) { if (e.target == this) { cerrarEditar(); } });
+      document.getElementById("modalEliminar").addEventListener("click", function(e) { if (e.target == this) { cerrarEliminar(); } });
+    })
+    .catch(function(err) {
+      document.getElementById("contenido").innerHTML = '<div class="caja" style="padding:3rem;text-align:center;color:var(--accent2);">Error al cargar el paquete.</div>';
+      console.log("Error: " + err.message);
+    });
+  }
+
+  function fila(etiqueta, valor) {
+    return '<tr style="border-bottom:1px solid var(--bg-input);">' +
+      '<td style="padding:13px 1.25rem;font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;white-space:nowrap;width:140px;">' + etiqueta + '</td>' +
+      '<td style="padding:13px 1.25rem;font-size:0.9rem;">' + valor + '</td>' +
+      '</tr>';
+  }
+
+  function copiarCodigo(codigo) {
+    navigator.clipboard.writeText(codigo).then(function() {
+      toast("Código copiado al portapapeles", "exito");
+    });
+  }
+
+  function cargarClientesSelect() {
+    fetch("http://localhost:3000/api/clientes", { headers: { "Authorization": "Bearer " + token } })
+    .then(function(res) { return res.json(); })
+    .then(function(clientes) {
+      var select = document.getElementById("editarSalida");
+      if (!select) return;
+      for (var i = 0; i < clientes.length; i++) {
+        var op = document.createElement("option");
+        op.value = clientes[i].id;
+        op.textContent = clientes[i].nombre;
+        select.appendChild(op);
+      }
+    });
+  }
+
+  var idAEditar   = null;
+  var idAEliminar = null;
+
+  function abrirEditar(id, fecha, origen, salida) {
+    idAEditar = id;
+    document.getElementById("editarFecha").value  = fecha;
+    document.getElementById("editarOrigen").value = origen;
+    // salida se pondrá cuando el select esté cargado
+    setTimeout(function() { document.getElementById("editarSalida").value = salida; }, 300);
+    document.getElementById("modalEditar").classList.add("visible");
+  }
+
+  function cerrarEditar() {
+    document.getElementById("modalEditar").classList.remove("visible");
+  }
+
+  function guardarEdicion() {
+    var fechaNueva  = document.getElementById("editarFecha").value;
+    var origenNuevo = document.getElementById("editarOrigen").value;
+    var salidaNueva = document.getElementById("editarSalida").value;
+
+    if (!fechaNueva || !origenNuevo || !salidaNueva) { alert("Rellena todos los campos"); return; }
+
+    fetch("http://localhost:3000/api/paquetes/" + idAEditar, {
+      method: "PATCH",
+      headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json" },
+      body: JSON.stringify({ fechaSalida: fechaNueva, origen: origenNuevo, salida: salidaNueva })
+    })
+    .then(function(res) { return res.json(); })
+    .then(function() {
+      cerrarEditar();
+      toast("Paquete actualizado", "exito");
+      var params = new URLSearchParams(window.location.search);
+      cargarPaquete(params.get("codigo"));
+    })
+    .catch(function() { toast("Error al actualizar", "error"); });
+  }
+
+  function abrirEliminar(id, codigo) {
+    idAEliminar = id;
+    document.getElementById("codigoEliminar").textContent = codigo;
+    document.getElementById("modalEliminar").classList.add("visible");
+  }
+
+  function cerrarEliminar() {
+    document.getElementById("modalEliminar").classList.remove("visible");
+  }
+
+  function confirmarEliminar() {
+    fetch("http://localhost:3000/api/paquetes/" + idAEliminar, {
+      method: "DELETE",
+      headers: { "Authorization": "Bearer " + token }
+    })
+    .then(function(res) { return res.json(); })
+    .then(function() {
+      toast("Paquete eliminado", "error");
+      setTimeout(function() { window.location.href = "/index.html"; }, 1200);
+    })
+    .catch(function() { toast("Error al eliminar", "error"); });
+  }
+  </script>
+
+</body>
+</html>

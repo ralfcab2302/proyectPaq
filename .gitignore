@@ -1,0 +1,13 @@
+# Variables de entorno — NUNCA subir al repositorio
+.env
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Docker volumes
+mysql_data/
+
+# OS
+.DS_Store
+Thumbs.db

@@ -7,7 +7,7 @@ import {
   crearCliente,
   actualizarCliente,
   eliminarCliente
-} from "../controller/clientes.controller.js";
+} from "../controllers/clientes.controller.js";
 
 var clienteRouter = Router();
 

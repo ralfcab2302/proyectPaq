@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    body {
+      background-color: #0f0f13;
+      font-family: 'DM Sans', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0;
+    }
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: linear-gradient(rgba(108,99,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(108,99,255,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+    }
+    .caja {
+      background: #17171e;
+      border: 1px solid #2a2a38;
+      border-radius: 16px;
+      padding: 2.5rem;
+      width: 100%;
+      max-width: 380px;
+    }
+    .logo {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    .logo-icono {
+      width: 56px; height: 56px;
+      background: linear-gradient(135deg, #6c63ff, #ff6584);
+      border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.6rem;
+      margin: 0 auto 1rem;
+    }
+    .logo-titulo {
+      font-family: 'Space Mono', monospace;
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: #e8e8f0;
+    }
+    .logo-titulo span { color: #6c63ff; }
+    .logo-sub { font-size: 0.82rem; color: #6b6b80; margin-top: 4px; }
+    .error {
+      background: rgba(255,101,132,0.1);
+      border: 1px solid rgba(255,101,132,0.3);
+      color: #ff6584;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 0.82rem;
+      margin-bottom: 1rem;
+      display: none;
+    }
+    .campo { margin-bottom: 1rem; }
+    .campo label {
+      display: block;
+      font-size: 0.7rem;
+      color: #6b6b80;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 5px;
+    }
+    .campo input {
+      width: 100%;
+      background: #1e1e28;
+      border: 1px solid #2a2a38;
+      border-radius: 8px;
+      padding: 11px 14px;
+      color: #e8e8f0;
+      font-size: 0.9rem;
+      font-family: 'DM Sans', sans-serif;
+      outline: none;
+      box-sizing: border-box;
+    }
+    .campo input:focus { border-color: #6c63ff; }
+    .boton {
+      width: 100%;
+      background: #6c63ff;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 0.9rem;
+      font-family: 'Space Mono', monospace;
+      cursor: pointer;
+      margin-top: 0.5rem;
+    }
+    .boton:hover { background: #5a52e0; }
+    .boton:disabled { background: #3a3a50; cursor: not-allowed; }
+    .pista {
+      text-align: center;
+      margin-top: 1.5rem;
+      font-size: 0.72rem;
+      color: #3a3a4a;
+      font-family: 'Space Mono', monospace;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="caja">
+
+    <div class="logo">
+      <div class="logo-icono">📦</div>
+      <div class="logo-titulo">Paq<span>Track</span></div>
+      <div class="logo-sub">Inicia sesion para continuar</div>
+    </div>
+
+    <div class="error" id="error"></div>
+
+    <div class="campo">
+      <label>Email</label>
+      <input type="text" id="email" placeholder="admin@admin.com">
+    </div>
+
+    <div class="campo">
+      <label>Contrasena</label>
+      <input type="password" id="password" placeholder="admin123">
+    </div>
+
+    <button class="boton" id="boton" onclick="login()">entrar</button>
+
+    <div class="pista">admin@admin.com / admin123</div>
+
+  </div>
+
+  <script>
+    if (localStorage.getItem("token")) {
+      window.location.href = "/index.html";
+    }
+
+    document.addEventListener("keydown", function(e) {
+      if (e.key === "Enter") login();
+    });
+
+    function login() {
+      var email    = document.getElementById("email").value;
+      var password = document.getElementById("password").value;
+      var error    = document.getElementById("error");
+      var boton    = document.getElementById("boton");
+
+      error.style.display = "none";
+
+      if (!email || !password) {
+        error.textContent = "Rellena todos los campos";
+        error.style.display = "block";
+        return;
+      }
+
+      boton.textContent = "cargando...";
+      boton.disabled = true;
+
+      fetch("http://localhost:3000/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email, password: password })
+      })
+      .then(function(res) {
+        return res.json().then(function(data) {
+          return { ok: res.ok, data: data };
+        });
+      })
+      .then(function(res) {
+        if (!res.ok) {
+          error.textContent = res.data.mensaje || "Credenciales incorrectas";
+          error.style.display = "block";
+          boton.textContent = "entrar";
+          boton.disabled = false;
+          return;
+        }
+        localStorage.setItem("token", res.data.token);
+        localStorage.setItem("nombre", res.data.nombre);
+        window.location.href = "/index.html";
+      })
+      .catch(function() {
+        error.textContent = "No se pudo conectar con el servidor";
+        error.style.display = "block";
+        boton.textContent = "entrar";
+        boton.disabled = false;
+      });
+    }
+  </script>
+
+</body>
+</html>

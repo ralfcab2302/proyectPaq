@@ -1,6 +1,6 @@
 "use strict";
 import { Router } from "express";
-import { register, login } from "../controller/auth.controller.js";
+import { register, login } from "../controllers/auth.controller.js";
 
 const router = Router();
 

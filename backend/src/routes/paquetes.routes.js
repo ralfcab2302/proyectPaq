@@ -9,7 +9,7 @@ import {
   reemplazarPaquete,
   actualizarPaquete,
   eliminarPaquete
-} from "../controller/paquetes.controller.js";
+} from "../controllers/paquetes.controller.js";
 
 var paqueteRouter = Router();
 
