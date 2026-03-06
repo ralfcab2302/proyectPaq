@@ -213,32 +213,52 @@ function cargarDatos(origen, salida, pagina, codigoBarras) {
 // =============================================
 function cargarEstadisticas(origen, salida, codigoBarras) {
 
-  var url = "http://localhost:3000/api/paquetes/estadisticas?a=1";
-  if (origen != "")     { url = url + "&origen=" + origen; }
-  if (salida != "")     { url = url + "&salida=" + salida; }
-  if (codigoBarras != "" && codigoBarras != undefined) {
-    url = url + "&codigoBarras=" + codigoBarras;
+  var salidaSelect       = document.getElementById("filtroSalida");
+  var salidaId           = salidaSelect.value;
+  var nombreCliente      = "";
+
+  if (salidaId != "") {
+    nombreCliente = salidaSelect.options[salidaSelect.selectedIndex].textContent;
   }
 
-  fetch(url, { headers: { "Authorization": "Bearer " + token } })
-  .then(function(res) { return res.json(); })
-  .then(function(datos) {
+  // url con todos los filtros activos
+  var urlFiltrada = "http://localhost:3000/api/paquetes/estadisticas?a=1";
+  if (origen != "")     { urlFiltrada = urlFiltrada + "&origen=" + origen; }
+  if (salida != "")     { urlFiltrada = urlFiltrada + "&salida=" + salida; }
+  if (codigoBarras != "" && codigoBarras != undefined) {
+    urlFiltrada = urlFiltrada + "&codigoBarras=" + codigoBarras;
+  }
 
-    // si hay un cliente seleccionado, buscar su nombre y mostrar graficos especiales
-    var salidaSelect = document.getElementById("filtroSalida");
-    var salidaId     = salidaSelect.value;
-
-    if (salidaId != "") {
-      // coger el nombre del cliente del option seleccionado
-      var opcionSeleccionada = salidaSelect.options[salidaSelect.selectedIndex];
-      var nombreCliente = opcionSeleccionada.textContent;
-      mostrarGraficosCliente(nombreCliente, datos);
-    } else {
+  // sin cliente seleccionado: una sola peticion
+  if (salidaId == "") {
+    fetch(urlFiltrada, { headers: { "Authorization": "Bearer " + token } })
+    .then(function(res) { return res.json(); })
+    .then(function(datos) {
       ocultarGraficosCliente();
       hacerGraficosGenerales(datos);
-    }
+    })
+    .catch(function(err) { console.log("Error estadisticas: " + err.message); });
+    return;
+  }
+
+  // con cliente: dos peticiones en paralelo
+  // p1 — con todos los filtros → para el grafico de evolucion mensual
+  var p1 = fetch(urlFiltrada, { headers: { "Authorization": "Bearer " + token } })
+    .then(function(res) { return res.json(); });
+
+  // p2 — solo con salida, SIN filtro de origen → para Cordoba vs Sevilla siempre con las dos barras
+  var urlSoloCliente = "http://localhost:3000/api/paquetes/estadisticas?a=1&salida=" + salidaId;
+  var p2 = fetch(urlSoloCliente, { headers: { "Authorization": "Bearer " + token } })
+    .then(function(res) { return res.json(); });
+
+  Promise.all([p1, p2])
+  .then(function(res) {
+    mostrarGraficosCliente(nombreCliente, {
+      porMes:    res[0].porMes,     // meses respetan el filtro de origen
+      porOrigen: res[1].porOrigen   // origen siempre muestra Cordoba Y Sevilla
+    });
   })
-  .catch(function(err) { console.log("Error estadisticas: " + err.message); });
+  .catch(function(err) { console.log("Error estadisticas cliente: " + err.message); });
 }
 
 
